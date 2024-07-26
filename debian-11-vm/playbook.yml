@@ -1,0 +1,75 @@
+---
+- hosts: all
+  become: yes
+  tasks:
+    - name: Update apt package index
+      apt:
+        update_cache: yes
+
+    - name: Install dependencies
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+        state: present
+
+    - name: Add Docker’s official GPG key
+      apt_key:
+        url: https://download.docker.com/linux/debian/gpg
+        state: present
+
+    - name: Set up the stable repository
+      apt_repository:
+        repo: deb [arch=amd64] https://download.docker.com/linux/debian bullseye stable
+        state: present
+
+    - name: Update apt package index again
+      apt:
+        update_cache: yes
+
+    - name: Install Docker CE
+      apt:
+        name: docker-ce
+        state: present
+
+    - name: Ensure Docker service is running
+      service:
+        name: docker
+        state: started
+        enabled: yes
+    
+    - name: adding existing user "{{ ansible_user }}" to group sudo
+      user:
+        name: "{{ ansible_user }}"
+        groups: docker
+        append: yes
+      become: yes
+
+    # - name: Update session to apply group changes
+    #   command: newgrp docker
+    #   become: yes
+
+    - name: Clone sqlite repository
+      git:
+        repo: https://github.com/xxanadd/sqlite_cmake_task.git
+        dest: /home/vagrant/sqlite_cmake_task
+        clone: yes
+        update: yes
+    
+    - name: Build Docker image
+      community.docker.docker_image_build:
+        name: xxanadd/sqlite-cmake
+        path: /home/vagrant/sqlite_cmake_task
+        dockerfile: Dockerfile
+
+    - name: Run Docker container
+      community.docker.docker_container:
+        name: sqlite-cmake
+        image: xxanadd/sqlite-cmake:latest
+        volumes:
+          - "/home/vagrant/sqlite_cmake_task/build:/app/build"
+        state: started
+
